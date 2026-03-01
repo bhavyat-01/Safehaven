@@ -10,6 +10,9 @@ from gemini_client import summarize_fight
 from firebase_client import insert_threat, update_threat, threats_ref
 import config
 from utils import load_video_metadata 
+from messages import process_threat_alerts
+
+print("IMPORT SUCCESS")
 
 # -------------------------
 # Setup
@@ -41,6 +44,7 @@ def async_gemini_call(images, metadata=None):
             current_threat_id = threat_id
             active_threat = True
             print(f"New threat created: {threat_id}")
+            process_threat_alerts(threat_id)
     else:
         update_threat(current_threat_id, score, explanation, images, metadata=metadata)
         print(f"Updated existing threat: {current_threat_id}")

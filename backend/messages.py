@@ -90,9 +90,6 @@
 #         else:
 #             print(f"User {phone} is {distance:.2f} miles away — not in radius for threat {threat.id}.")
 
-
-
-from fastapi import FastAPI
 import os
 import requests
 import firebase_admin
@@ -100,26 +97,24 @@ from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
 import math
 
-# -----------------------
-# Setup
-# -----------------------
+
+# -------------------------
+# Initialization
+# -------------------------
 load_dotenv()
 
 TEXTBELT_API_KEY = os.getenv("TEXTBELT_API_KEY")
 
-app = FastAPI()
+if not firebase_admin._apps:
+    cred = credentials.Certificate("serviceAccountKey.json")
+    firebase_admin.initialize_app(cred)
 
-# Firebase init (run once)
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-ALERT_RADIUS_MILES = 5
 
-
-# -----------------------
+# -------------------------
 # Distance Calculation
-# -----------------------
+# -------------------------
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 3958.8  # miles
 
@@ -137,109 +132,95 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
 
-# -----------------------
+# -------------------------
 # SMS Sender
-# -----------------------
+# -------------------------
 def send_sms(phone_number, message):
+    """
+    Sends SMS using Textbelt
+    """
 
-    # payload = {
-    #     "phone": phone_number,
-    #     "message": message,
-    #     "key": TEXTBELT_API_KEY,
-    # }
+    #Uncomment when ready
+    payload = {
+        "phone": phone_number,
+        "message": message,
+        "key": TEXTBELT_API_KEY,
+    }
+    
+    response = requests.post(
+        "https://textbelt.com/text",
+        data=payload
+    )
+    
+    print(response.json())
 
-    # response = requests.post(
-    #     "https://textbelt.com/text",
-    #     data=payload
-    # )
-
-    # result = response.json()
-
-    # if result.get("success"):
-    #     print(f"✅ SMS sent to {phone_number}")
-    # else:
-    #     print(f"❌ Failed for {phone_number}: {result}")
-    print("SENT MESSAGE")
+    print("TEXT TO:", phone_number)
 
 
-# -----------------------
-# Core Alert Logic
-# -----------------------
-def process_threat_alerts():
+# -------------------------
+# MAIN FUNCTION ✅
+# -------------------------
+# -------------------------
+# MAIN FUNCTION ✅
+# -------------------------
+def process_threat_alerts(threat_id, radius_miles: float = 5):
+    """
+    Sends SMS alerts for ONE threat only.
+    """
+    print("PROCESS THREAT ALERTS")
 
-    alerts_sent = 0
+    threat_ref = db.collection("threats").document(threat_id)
+    threat_doc = threat_ref.get()
 
-    threats = db.collection("threats").stream()
+    if not threat_doc.exists:
+        print("Threat not found")
+        return
 
-    for threat in threats:
-        threat_data = threat.to_dict()
-        threat_location = threat_data.get("location")
+    threat_data = threat_doc.to_dict()
 
-        if not threat_location:
+    # Always use metadata.camera.lat/lng
+    camera_data = threat_data.get("metadata", {}).get("camera", {})
+    threat_lat = camera_data.get("lat")
+    threat_lon = camera_data.get("lng")
+
+    if threat_lat is None or threat_lon is None:
+        print("No valid location found in metadata.camera")
+        return
+
+    threat_message = "🚨 SafeHaven Alert: " + threat_data.get(
+        "explanation",
+        "Threat nearby!"
+    )
+
+    # Loop through all users
+    users = db.collection("users").stream()
+
+    for user in users:
+        user_data = user.to_dict()
+
+        phone = user_data.get("phone")
+        user_location = user_data.get("location")
+
+        if not phone or not user_location:
             continue
 
-        threat_message = threat_data.get(
-            "message",
-            "🚨 SafeHaven Alert: Threat nearby!"
+        # Assuming user location is also a dict with lat/lng numbers
+        user_lat = user_location.get("lat")
+        user_lon = user_location.get("lng")
+
+        if user_lat is None or user_lon is None:
+            print(f"User {phone} has no valid location")
+            continue
+
+        distance = haversine_distance(
+            threat_lat,
+            threat_lon,
+            user_lat,
+            user_lon
         )
 
-        threat_lat = (
-            threat_location.get("lat")
-            if isinstance(threat_location, dict)
-            else threat_location.latitude
-        )
-
-        threat_lon = (
-            threat_location.get("lng")
-            if isinstance(threat_location, dict)
-            else threat_location.longitude
-        )
-
-        users = db.collection("users").stream()
-
-        for user in users:
-            user_data = user.to_dict()
-
-            phone = user_data.get("phone")
-            user_location = user_data.get("location")
-
-            if not phone or not user_location:
-                continue
-
-            user_lat = (
-                user_location.get("lat")
-                if isinstance(user_location, dict)
-                else user_location.latitude
-            )
-
-            user_lon = (
-                user_location.get("lng")
-                if isinstance(user_location, dict)
-                else user_location.longitude
-            )
-
-            distance = haversine_distance(
-                threat_lat,
-                threat_lon,
-                user_lat,
-                user_lon
-            )
-
-            if distance <= ALERT_RADIUS_MILES:
-                send_sms(phone, threat_message)
-                alerts_sent += 1
-
-    return alerts_sent
-
-# -----------------------
-# API Endpoint
-# -----------------------
-@app.post("/send-alerts")
-def send_alerts():
-
-    count = process_threat_alerts()
-
-    return {
-        "status": "completed",
-        "alerts_sent": count
-    }
+        if distance <= radius_miles:
+            send_sms(phone, threat_message)
+            print(f"User {phone} is {distance:.2f} miles away — alerted.")
+        else:
+            print(f"User {phone} is {distance:.2f} miles away — not alerted.")

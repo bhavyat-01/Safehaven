@@ -167,7 +167,7 @@ export default function Dashboard() {
       }
     };
     updateLocation(); 
-    intervalRef.current = setInterval(updateLocation, 120000); 
+    intervalRef.current = setInterval(updateLocation, 12000);
   };
 
   const stopTracking = () => {

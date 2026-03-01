@@ -19,19 +19,46 @@ db = firestore.client()
 threats_ref = db.collection("threats")
 
 
+# def insert_threat(score, explanation, images, metadata=None, active=True):
+#     doc_ref = db.collection("threats").document()
+#     doc_ref.set({
+#         "score": score,
+#         "explanation": explanation,
+#         "images": images,
+#         "metadata": metadata or {},
+#         "start_time": firestore.SERVER_TIMESTAMP,
+#         "end_time": None,
+#         "active": active
+#     })
+#     return doc_ref.id
+
 def insert_threat(score, explanation, images, metadata=None, active=True):
     doc_ref = db.collection("threats").document()
-    doc_ref.set({
+    
+    # Prepare threat data
+    threat_data = {
         "score": score,
         "explanation": explanation,
         "images": images,
         "metadata": metadata or {},
         "start_time": firestore.SERVER_TIMESTAMP,
         "end_time": None,
-        "active": active,
-        "confirms": 0,
-        "denies": 0
-    })
+        "active": active
+    }
+
+    # Write to Firestore
+    doc_ref.set(threat_data)
+
+    # --- BLOCK until Firestore confirms write ---
+    for _ in range(5):  # retry up to 5 times
+        doc = doc_ref.get()
+        if doc.exists:
+            break
+        time.sleep(0.3)
+    else:
+        print("[WARN] Threat document did not become readable!")
+    
+    # ✅ Return ID only after Firestore confirms
     return doc_ref.id
 
 
