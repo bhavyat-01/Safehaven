@@ -26,17 +26,11 @@ interface Threat {
   confirms?: number;
   denies?: number;
   resolved?: boolean;
-  voters?: Record<string, 'confirm' | 'deny'>; 
-  start_time?: any; 
-  metadata?: {
-    camera?: {
-      lat: number;
-      lng: number;
-      location: string;
-    }
-  }
+  voters?: Record<string, 'confirm' | 'deny'>;
+  start_time?: any;
+  metadata?: { camera?: { lat: number; lng: number; location: string } };
+  images?: string[]; // <-- add this
 }
-
 const getDistanceInMiles = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 3958.8; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -253,30 +247,85 @@ export default function Dashboard() {
               {nearbyThreats.map((threat) => {
                 const userVote = threat.voters?.[auth.currentUser?.uid || ""];
                 return (
-                  <div key={threat.id} style={{...styles.threatItem, animation: 'slideIn 0.3s ease-out', opacity: threat.resolved ? 0.6 : 1}}>
-                    <div style={{
-                      ...styles.severityIndicator, 
-                      backgroundColor: threat.resolved ? '#444' : (threat.score >= 7 ? '#ff4444' : threat.score >= 4 ? '#ffbb33' : '#00C851')
-                    }} />
+                  <div
+                    key={threat.id}
+                    style={{
+                      ...styles.threatItem,
+                      animation: 'slideIn 0.3s ease-out',
+                      opacity: threat.resolved ? 0.6 : 1
+                    }}
+                  >
+                    {/* Severity Indicator */}
+                    <div
+                      style={{
+                        ...styles.severityIndicator,
+                        backgroundColor: threat.resolved
+                          ? '#444'
+                          : threat.score >= 7
+                            ? '#ff4444'
+                            : threat.score >= 4
+                              ? '#ffbb33'
+                              : '#00C851'
+                      }}
+                    />
+
+                    {/* Threat Content */}
                     <div style={styles.threatContent}>
+                      {/* Header */}
                       <div style={styles.threatTop}>
-                        <span style={{
-                          ...styles.threatType, 
-                          color: threat.resolved ? '#888' : (threat.score >= 7 ? '#ff4444' : threat.score >= 4 ? '#ffbb33' : '#00C851')
-                        }}>
-                          {threat.resolved ? "Resolved / Archived" : (threat.score >= 7 ? "High Priority" : threat.score >= 4 ? "Medium Priority" : "Low Priority")}
+                        <span
+                          style={{
+                            ...styles.threatType,
+                            color: threat.resolved
+                              ? '#888'
+                              : threat.score >= 7
+                                ? '#ff4444'
+                                : threat.score >= 4
+                                  ? '#ffbb33'
+                                  : '#00C851'
+                          }}
+                        >
+                          {threat.resolved
+                            ? "Resolved / Archived"
+                            : threat.score >= 7
+                              ? "High Priority"
+                              : threat.score >= 4
+                                ? "Medium Priority"
+                                : "Low Priority"}
                         </span>
                       </div>
+
+                      {/* Explanation */}
                       <p style={styles.threatDesc}>{threat.explanation}</p>
                       <p style={styles.threatSubText}>📍 {threat.metadata?.camera?.location}</p>
-                      
+
+                      {/* Images */}
+                      {threat.images && threat.images.length > 0 && (
+                        <div style={{
+                          display: 'flex',
+                          gap: '10px',
+                          overflowX: 'auto',
+                          marginTop: '12px'
+                        }}>
+                          {threat.images.map((img, idx) => (
+                            <img
+                              key={idx}
+                              src={`http://localhost:5000/screenshots/${threat.id}/${img}`}
+                              alt={`Threat ${threat.id} screenshot ${idx + 1}`}
+                              style={{ height: '120px', borderRadius: '12px', objectFit: 'cover', marginRight: '8px' }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Voting */}
                       {!threat.resolved && (
                         <>
                           <div style={styles.voteContainer}>
-                            <button 
-                              onClick={() => handleVote(threat.id, 'confirm')} 
+                            <button
+                              onClick={() => handleVote(threat.id, 'confirm')}
                               style={{
-                                ...styles.confirmBtn, 
+                                ...styles.confirmBtn,
                                 opacity: userVote === 'deny' ? 0.4 : 1,
                                 filter: userVote === 'deny' ? 'grayscale(1)' : 'none',
                                 border: userVote === 'confirm' ? '3px solid #fff' : 'none'
@@ -284,10 +333,10 @@ export default function Dashboard() {
                             >
                               Confirm {threat.confirms || 0}
                             </button>
-                            <button 
-                              onClick={() => handleVote(threat.id, 'deny')} 
+                            <button
+                              onClick={() => handleVote(threat.id, 'deny')}
                               style={{
-                                ...styles.denyBtn, 
+                                ...styles.denyBtn,
                                 opacity: userVote === 'confirm' ? 0.4 : 1,
                                 filter: userVote === 'confirm' ? 'grayscale(1)' : 'none',
                                 border: userVote === 'deny' ? '3px solid #fff' : 'none'
@@ -296,16 +345,20 @@ export default function Dashboard() {
                               Deny {threat.denies || 0}
                             </button>
                           </div>
-                          <p style={styles.voteInstruction}>Click confirm if you witnessed the threat or deny if you did not see it.</p>
+                          <p style={styles.voteInstruction}>
+                            Click confirm if you witnessed the threat or deny if you did not see it.
+                          </p>
                         </>
                       )}
                     </div>
                   </div>
                 );
               })}
+
+              {/* No threats */}
               {nearbyThreats.length === 0 && (
                 <div style={styles.emptyThreats}>
-                   <p>{trackingActive ? "Monitoring for entries within 5 miles..." : "Enable location to view local activity."}</p>
+                  <p>{trackingActive ? "Monitoring for entries within 5 miles..." : "Enable location to view local activity."}</p>
                 </div>
               )}
             </div>

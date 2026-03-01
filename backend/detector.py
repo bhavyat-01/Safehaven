@@ -9,8 +9,7 @@ from ultralytics import YOLO
 from gemini_client import summarize_fight
 from firebase_client import insert_threat, update_threat, threats_ref
 import config
-from utils import load_video_metadata 
-from messages import process_threat_alerts
+from utils import load_video_metadata
 
 print("IMPORT SUCCESS")
 
@@ -28,6 +27,9 @@ current_threat_id = None
 active_threat = False
 last_gemini_call = 0
 
+# Max screenshots per threat
+MAX_SCREENSHOTS_PER_THREAT = 5
+
 
 # -------------------------
 # Gemini async call
@@ -38,27 +40,39 @@ def async_gemini_call(images, metadata=None):
     score = result["score"]
     explanation = result["explanation"]
 
+    image_filenames = [os.path.basename(p) for p in images]
+
+    # New threat
     if not active_threat:
         if score > 6:
-            threat_id = insert_threat(score, explanation, images, metadata=metadata)
+            threat_id = insert_threat(score, explanation, image_filenames, metadata=metadata)
             current_threat_id = threat_id
             active_threat = True
+
+            # Move temp images to threat folder
+            temp_folder = os.path.join(config.OUTPUT_FOLDER, "temp")
+            threat_folder = os.path.join(config.OUTPUT_FOLDER, threat_id)
+            os.makedirs(threat_folder, exist_ok=True)
+
+            if os.path.exists(temp_folder):
+                for f in os.listdir(temp_folder):
+                    os.rename(os.path.join(temp_folder, f), os.path.join(threat_folder, f))
+                os.rmdir(temp_folder)
+
             print(f"New threat created: {threat_id}")
-            process_threat_alerts(threat_id)
+            # process_threat_alerts(threat_id)
+
+    # Existing threat
     else:
-        update_threat(current_threat_id, score, explanation, images, metadata=metadata)
+        update_threat(current_threat_id, score, explanation, image_filenames, metadata=metadata)
         print(f"Updated existing threat: {current_threat_id}")
+
 
 # -------------------------
 # Firebase cleanup thread
 # -------------------------
 def cleanup_threats():
-    """
-    Periodically checks active threats in Firebase and marks them inactive
-    if they haven't been updated for THREAT_TIMEOUT seconds.
-    """
     while True:
-        # Stream all active threats
         docs = threats_ref.where("active", "==", True).stream()
         for doc in docs:
             threat_data = doc.to_dict()
@@ -66,10 +80,9 @@ def cleanup_threats():
             if time.time() - last_seen > config.THREAT_COOLDOWN:
                 threats_ref.document(doc.id).update({"active": False})
                 print(f"[Firebase] Threat {doc.id} marked inactive")
-        time.sleep(5)  # check every 5 seconds
+        time.sleep(5)
 
 
-# Start cleanup thread
 cleanup_thread = threading.Thread(target=cleanup_threats, daemon=True)
 cleanup_thread.start()
 
@@ -94,7 +107,7 @@ def process_video(video_path):
         frame_resized = cv2.resize(frame, (640, 360))
         clean_frame = frame_resized.copy()
 
-        # Only process every N frames
+        # Process every N frames
         if frame_count % config.PROCESS_EVERY == 0:
             results = model(frame_resized)
             new_centers = {}
@@ -118,32 +131,38 @@ def process_video(video_path):
                             if speed > config.SPEED_THRESHOLD:
                                 current_time = time.time()
 
-                                # Capture screenshots
-                                if (screenshot_count < config.MAX_SCREENSHOTS and
-                                    current_time - last_capture_time >= config.CAPTURE_INTERVAL):
+                                # Determine folder for screenshots
+                                folder_name = current_threat_id if current_threat_id else "temp"
+                                folder_path = os.path.join(config.OUTPUT_FOLDER, folder_name)
+                                os.makedirs(folder_path, exist_ok=True)
+
+                                # Capture screenshot
+                                if screenshot_count < MAX_SCREENSHOTS_PER_THREAT and \
+                                current_time - last_capture_time >= config.CAPTURE_INTERVAL:
 
                                     filename = f"fight_frame_{screenshot_count + 1}.png"
-                                    filepath = os.path.join(config.OUTPUT_FOLDER, filename)
+                                    filepath = os.path.join(folder_path, filename)
                                     cv2.imwrite(filepath, clean_frame)
+
+                                    # ✅ Store only the filename, not full path
                                     image_buffer.append(filepath)
+
                                     screenshot_count += 1
                                     last_capture_time = current_time
 
-                                    # Update last_seen in firebase if active
+                                    # Update last_seen in Firebase
                                     if active_threat and current_threat_id:
-                                        threats_ref.document(current_threat_id).update(
-                                            {"last_seen": time.time()}
-                                        )
+                                        threats_ref.document(current_threat_id).update({"last_seen": time.time()})
 
             prev_centers = new_centers
 
         # Call Gemini when enough screenshots
-        if screenshot_count == config.MAX_SCREENSHOTS:
+        if screenshot_count == MAX_SCREENSHOTS_PER_THREAT:
             if time.time() - last_gemini_call > config.GEMINI_COOLDOWN:
-                threading.Thread(target=async_gemini_call, args=(image_buffer.copy(),video_metadata)).start()
+                threading.Thread(target=async_gemini_call, args=(image_buffer.copy(), video_metadata)).start()
                 last_gemini_call = time.time()
 
-            # Reset for next detection
+            # Reset buffer
             screenshot_count = 0
             image_buffer = []
 
