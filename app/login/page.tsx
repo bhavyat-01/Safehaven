@@ -149,21 +149,6 @@ export default function LoginPage() {
                 onChange={handleChange}
                 value={formData.phone}
               />
-              <select
-                name="phoneProvider"
-                required
-                style={styles.input}
-                onChange={handleChange}
-                value={formData.phoneProvider}
-              >
-                <option value="" disabled>
-                  Select Phone Provider
-                </option>
-                <option value="Verizon">Verizon</option>
-                <option value="AT&T">AT&T</option>
-                <option value="T-Mobile">T-Mobile</option>
-                <option value="Google Fi">Google Fi</option>
-              </select>
             </>
           )}
 

@@ -4,8 +4,8 @@
   "camera": {
     "camera_id": "CAM-12A",
     "location": "Parking Garage Level 2",
-    "latitude": -3.32147,
-    "longitude": 144.27588
+    "lat": 39.680441865552844,
+    "lng": -75.75328702009412
   },
   "recorded_at": "2026-02-28T18:22:15Z",
   "duration_seconds": 87,
