@@ -3,7 +3,7 @@
 VIDEO_PATH = "violentVideos/3.mp4"
 YOLO_MODEL = "yolov8n.pt"
 
-OUTPUT_FOLDER = "backend/fight_screenshots"
+OUTPUT_FOLDER = "fight_screenshots"
 
 MAX_SCREENSHOTS = 3
 CAPTURE_INTERVAL = 2       # seconds between screenshots
