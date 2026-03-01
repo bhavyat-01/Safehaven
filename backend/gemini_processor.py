@@ -3,6 +3,7 @@ from gemini_client import summarize_fight
 from firebase_client import insert_threat, update_threat
 from state import state, lock
 import config
+from messages import process_threat_alerts
 
 # -----------------------------
 # Config
@@ -45,6 +46,7 @@ def process_clip(video_path, metadata):
                 state["current_threat_id"] = threat_id
                 state["active_threat"] = True
                 print("[Gemini] New threat created:", threat_id)
+                process_threat_alerts(threat_id)
 
             # Ensure threat folder exists
             threat_folder = os.path.join(
