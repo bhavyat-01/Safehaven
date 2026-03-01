@@ -1,0 +1,15 @@
+{
+  "video_id": "cam_001_2026_02_28",
+  "video_path": "violentVideos/3.mp4",
+  "camera": {
+    "camera_id": "CAM-12A",
+    "location": "Parking Garage Level 2",
+    "latitude": -3.32147,
+    "longitude": 144.27588
+  },
+  "recorded_at": "2026-02-28T18:22:15Z",
+  "duration_seconds": 87,
+  "resolution": "1920x1080",
+  "threat_detected": true,
+  "notes": "Simulated surveillance footage for testing"
+}

@@ -1,7 +1,6 @@
 # gemini_client.py
 
 import os
-import re
 from dotenv import load_dotenv
 from google import genai
 from PIL import Image
@@ -13,15 +12,18 @@ client = genai.Client(api_key=api_key)
 
 
 def summarize_fight(image_paths):
+    """
+    image_paths: list of image file paths
+    returns: dict with 'score' and 'explanation'
+    """
     prompt = """
     Look at these images and determine if a physical fight or violent crime is occurring.
     Score it from 0-10.
     0 = no fight
     10 = extremely dangerous to bystanders
-
-    STRICT FORMAT:
-    Score: <number>
-    Explanation: <one short sentence>
+    Provide only:
+    Score: X
+    Short explanation.
     """
 
     images = [Image.open(path) for path in image_paths]
@@ -31,22 +33,13 @@ def summarize_fight(image_paths):
         contents=[*images, prompt],
     )
 
-    raw_text = response.text.strip()
-
-    # -------------------------
-    # Parse Score
-    # -------------------------
-    score_match = re.search(r"Score:\s*(\d+)", raw_text)
-    score = int(score_match.group(1)) if score_match else 0
-
-    # -------------------------
-    # Parse Explanation
-    # -------------------------
-    explanation_match = re.search(r"Explanation:\s*(.*)", raw_text)
-    explanation = explanation_match.group(1).strip() if explanation_match else raw_text
-
-    return {
-        "score": score,
-        "explanation": explanation,
-        "raw": raw_text
-    }
+    # Example parsing: assumes Gemini returns "Score: X\nShort explanation: ..."
+    try:
+        text = response.text
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        score = int(lines[0].split(":")[1].strip())
+        explanation = lines[1] if len(lines) > 1 else ""
+        return {"score": score, "explanation": explanation}
+    except Exception as e:
+        print("Error parsing Gemini response:", e)
+        return {"score": 0, "explanation": text}
