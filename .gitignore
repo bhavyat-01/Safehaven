@@ -10,6 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
+backend/serviceAccountKey.json
+
 # testing
 /coverage
 
