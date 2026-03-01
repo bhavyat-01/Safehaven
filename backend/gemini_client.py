@@ -23,7 +23,7 @@ def summarize_fight(image_paths):
     10 = extremely dangerous to bystanders
     Provide only:
     Score: X
-    Short explanation.
+    Explanation: Y.
     """
 
     images = [Image.open(path) for path in image_paths]
@@ -38,7 +38,7 @@ def summarize_fight(image_paths):
         text = response.text
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         score = int(lines[0].split(":")[1].strip())
-        explanation = lines[1] if len(lines) > 1 else ""
+        explanation = lines[1].split(":")[1].strip() if len(lines) > 1 else ""
         return {"score": score, "explanation": explanation}
     except Exception as e:
         print("Error parsing Gemini response:", e)

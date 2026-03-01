@@ -28,7 +28,9 @@ def insert_threat(score, explanation, images, metadata=None, active=True):
         "metadata": metadata or {},
         "start_time": firestore.SERVER_TIMESTAMP,
         "end_time": None,
-        "active": active
+        "active": active,
+        "confirms": 0,
+        "denies": 0
     })
     return doc_ref.id
 
