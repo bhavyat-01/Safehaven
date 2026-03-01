@@ -1,11 +1,9 @@
-# firebase_client.py
-
 import os
 import time
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
-import config  # ensure this has OUTPUT_FOLDER path
+import config
 
 load_dotenv()
 
@@ -23,9 +21,6 @@ threats_ref = db.collection("threats")
 # Folder utility
 # -------------------------
 def create_threat_folder(threat_id):
-    """
-    Creates a folder for storing screenshots for this threat.
-    """
     folder = os.path.join(config.OUTPUT_FOLDER, threat_id)
     os.makedirs(folder, exist_ok=True)
     return folder
@@ -33,34 +28,31 @@ def create_threat_folder(threat_id):
 # -------------------------
 # Insert a new threat
 # -------------------------
-def insert_threat(score, explanation, images=None, metadata=None, active=True):
-    """
-    Inserts a new threat in Firestore and creates a folder for screenshots.
-    Returns the threat ID.
-    """
-    images = images or []
+def insert_threat(score, explanation, videos=None, metadata=None, active=True):
+    videos = videos or []
     metadata = metadata or {}
 
     doc_ref = threats_ref.document()
     threat_id = doc_ref.id
 
-    # Prepare Firestore data
     threat_data = {
         "score": score,
         "explanation": explanation,
-        "images": images,  # store filenames
+        "videos": videos,
         "metadata": metadata,
         "start_time": firestore.SERVER_TIMESTAMP,
+        "last_seen": time.time(),
         "end_time": None,
-        "active": active
+        "active": active,
+        "resolved": False,
+        "confirms": 0,
+        "denies": 0,
+        "voters": {}
     }
 
     doc_ref.set(threat_data)
-
-    # Ensure threat folder exists
     create_threat_folder(threat_id)
 
-    # Wait until Firestore confirms write
     for _ in range(5):
         if threats_ref.document(threat_id).get().exists:
             break
@@ -73,11 +65,8 @@ def insert_threat(score, explanation, images=None, metadata=None, active=True):
 # -------------------------
 # Update an existing threat
 # -------------------------
-def update_threat(threat_id, score, explanation, new_images=None, metadata=None):
-    """
-    Updates an existing threat's score, explanation, images, and metadata.
-    """
-    new_images = new_images or []
+def update_threat(threat_id, score, explanation, new_videos=None, metadata=None, replace_videos=False):
+    new_videos = new_videos or []
     metadata = metadata or {}
 
     doc_ref = threats_ref.document(threat_id)
@@ -87,27 +76,29 @@ def update_threat(threat_id, score, explanation, new_images=None, metadata=None)
         return
 
     existing = doc.to_dict()
-    images = existing.get("images", []) + new_images
+    
+    # Either replace entirely or append
+    if replace_videos:
+        videos = new_videos
+    else:
+        videos = existing.get("videos", []) + new_videos
+
     updated_score = max(score, existing.get("score", 0))
     updated_metadata = {**existing.get("metadata", {}), **metadata}
 
     doc_ref.update({
         "score": updated_score,
         "explanation": explanation,
-        "images": images,
+        "videos": videos,
         "metadata": updated_metadata,
+        "last_seen": time.time(),
         "active": True
     })
-
 # -------------------------
 # Mark a threat as ended
 # -------------------------
 def end_threat(threat_id):
-    """
-    Marks the threat as inactive and sets the end_time.
-    """
-    doc_ref = threats_ref.document(threat_id)
-    doc_ref.update({
+    threats_ref.document(threat_id).update({
         "active": False,
         "end_time": firestore.SERVER_TIMESTAMP
     })
@@ -116,8 +107,5 @@ def end_threat(threat_id):
 # Get all threats
 # -------------------------
 def get_all_threats():
-    """
-    Returns all threats as a dict keyed by threat ID.
-    """
     docs = threats_ref.stream()
     return {doc.id: doc.to_dict() for doc in docs}
