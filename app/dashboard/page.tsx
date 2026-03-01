@@ -42,6 +42,9 @@ const getDistanceInMiles = (lat1: number, lon1: number, lat2: number, lon2: numb
   return R * c;
 };
 
+const TOTAL_VOTERS_LIMIT = 2
+const RATIO_NEEDED = 0.5
+
 export default function Dashboard() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [threats, setThreats] = useState<Threat[]>([]);
@@ -71,6 +74,7 @@ export default function Dashboard() {
     });
 
     const unsubscribeThreats = onSnapshot(collection(db, "threats"), (snapshot) => {
+      console.log("Snapshot fired, docs:", snapshot.docs.length);
       const threatData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -105,18 +109,20 @@ export default function Dashboard() {
     const userId = auth.currentUser?.uid;
     if (!userId) return;
 
-    const threat = threats.find(t => t.id === threatId);
-    if (!threat || threat.resolved) return;
+    const threatRef = doc(db, "threats", threatId);
+    const freshDoc = await getDoc(threatRef);          // ← always read fresh
+    if (!freshDoc.exists()) return;
+
+    const threat = freshDoc.data() as Threat;
+    if (threat.resolved) return;
 
     const currentVoters = threat.voters || {};
     const previousVote = currentVoters[userId];
-
     if (previousVote === type) return;
 
     let newConfirms = threat.confirms || 0;
     let newDenies = threat.denies || 0;
 
-    // Adjust counts based on swap
     if (previousVote === 'confirm') newConfirms = Math.max(0, newConfirms - 1);
     if (previousVote === 'deny') newDenies = Math.max(0, newDenies - 1);
 
@@ -124,11 +130,12 @@ export default function Dashboard() {
     if (type === 'deny') newDenies++;
 
     const totalVotes = newConfirms + newDenies;
-    const shouldResolve = totalVotes >= 10 && (newDenies / totalVotes) >= 0.75;
+    const shouldResolve = totalVotes >= TOTAL_VOTERS_LIMIT && (newDenies / totalVotes) >= RATIO_NEEDED;
+    console.log("shouldResolve:", shouldResolve, { newConfirms, newDenies, totalVotes });
     const newScore = totalVotes > 0 ? Math.round((newConfirms / totalVotes) * 10) : threat.score;
 
     try {
-      await updateDoc(doc(db, "threats", threatId), {
+      await updateDoc(threatRef, {
         confirms: newConfirms,
         denies: newDenies,
         score: newScore,
@@ -252,7 +259,11 @@ export default function Dashboard() {
                     style={{
                       ...styles.threatItem,
                       animation: 'slideIn 0.3s ease-out',
-                      opacity: threat.resolved ? 0.6 : 1
+                      opacity: threat.resolved ? 0.6 : 1,
+                      backgroundColor: threat.resolved ? '#141414' : '#1a1a1a',
+                      border: threat.resolved ? '1px solid #1e1e1e' : '1px solid #2a2a2a',
+                      filter: threat.resolved ? 'grayscale(1)' : 'none',
+                      pointerEvents: threat.resolved ? 'none' : 'auto',
                     }}
                   >
                     {/* Severity Indicator */}
