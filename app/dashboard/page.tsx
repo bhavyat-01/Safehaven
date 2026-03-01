@@ -29,30 +29,31 @@ interface Threat {
   voters?: Record<string, 'confirm' | 'deny'>;
   start_time?: any;
   metadata?: { camera?: { lat: number; lng: number; location: string } };
-  images?: string[]; // <-- add this
+  videos?: string[];
 }
+
 const getDistanceInMiles = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 3958.8; 
+  const R = 3958.8;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = 
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
-const TOTAL_VOTERS_LIMIT = 2
-const RATIO_NEEDED = 0.5
+const TOTAL_VOTERS_LIMIT = 2;
+const RATIO_NEEDED = 0.5;
 
 export default function Dashboard() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [threats, setThreats] = useState<Threat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showConsent, setShowConsent] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
   const [lastSync, setLastSync] = useState<string>("");
-  
+  const [activeVideoIndex, setActiveVideoIndex] = useState<Record<string, number>>({});
+
   const router = useRouter();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,7 +66,6 @@ export default function Dashboard() {
           const userData = userDoc.data() as UserProfile;
           setProfile(userData);
           if (userData.locationConsent) startTracking(user.uid);
-          else setShowConsent(true);
         }
       } else {
         router.push("/login");
@@ -79,8 +79,8 @@ export default function Dashboard() {
         id: doc.id,
         ...doc.data()
       })) as Threat[];
-      
-      const sorted = threatData.sort((a, b) => {
+
+      const sorted = [...threatData].sort((a, b) => {
         const timeA = a.start_time?.seconds || a.last_seen || 0;
         const timeB = b.start_time?.seconds || b.last_seen || 0;
         return timeB - timeA;
@@ -101,16 +101,18 @@ export default function Dashboard() {
       const cam = threat.metadata?.camera;
       if (!userLoc?.lat || !userLoc?.lng || !cam?.lat || !cam?.lng) return false;
       const dist = getDistanceInMiles(userLoc.lat, userLoc.lng, cam.lat, cam.lng);
-      return dist <= 5; 
+      return dist <= 5;
     });
   }, [threats, profile?.location]);
+
+  const activeCount = nearbyThreats.filter(t => !t.resolved).length;
 
   const handleVote = async (threatId: string, type: 'confirm' | 'deny') => {
     const userId = auth.currentUser?.uid;
     if (!userId) return;
 
     const threatRef = doc(db, "threats", threatId);
-    const freshDoc = await getDoc(threatRef);          // ← always read fresh
+    const freshDoc = await getDoc(threatRef);
     if (!freshDoc.exists()) return;
 
     const threat = freshDoc.data() as Threat;
@@ -131,7 +133,6 @@ export default function Dashboard() {
 
     const totalVotes = newConfirms + newDenies;
     const shouldResolve = totalVotes >= TOTAL_VOTERS_LIMIT && (newDenies / totalVotes) >= RATIO_NEEDED;
-    console.log("shouldResolve:", shouldResolve, { newConfirms, newDenies, totalVotes });
     const newScore = totalVotes > 0 ? Math.round((newConfirms / totalVotes) * 10) : threat.score;
 
     try {
@@ -167,7 +168,7 @@ export default function Dashboard() {
         );
       }
     };
-    updateLocation(); 
+    updateLocation();
     intervalRef.current = setInterval(updateLocation, 12000);
   };
 
@@ -205,15 +206,15 @@ export default function Dashboard() {
       `}</style>
 
       <div style={styles.dashboardGrid}>
-        {/* LEFT COLUMN: PROFILE (Now on the left) */}
+        {/* LEFT COLUMN */}
         <div style={styles.leftColumn}>
           <div style={styles.profileCard}>
             <div style={styles.topActions}>
               <div style={styles.switchWrapper} onClick={toggleLocation}>
-                 <span style={styles.switchLabel}>{trackingActive ? "ON" : "OFF"}</span>
-                 <div style={{...styles.switchBase, backgroundColor: trackingActive ? "#2e7d32" : "#ccc"}}>
-                    <div style={{...styles.switchThumb, left: trackingActive ? "22px" : "2px"}}></div>
-                 </div>
+                <span style={styles.switchLabel}>{trackingActive ? "ON" : "OFF"}</span>
+                <div style={{ ...styles.switchBase, backgroundColor: trackingActive ? "#2e7d32" : "#ccc" }}>
+                  <div style={{ ...styles.switchThumb, left: trackingActive ? "22px" : "2px" }}></div>
+                </div>
               </div>
             </div>
 
@@ -221,13 +222,13 @@ export default function Dashboard() {
               <div style={styles.avatar}>{profile?.firstName?.[0]}</div>
               <h1 style={styles.name}>{profile?.firstName} {profile?.lastName}</h1>
               {trackingActive && (
-                 <div style={styles.liveTag}>Monitoring Area ({lastSync})</div>
+                <div style={styles.liveTag}>Monitoring Area ({lastSync})</div>
               )}
             </div>
 
             <div style={styles.infoSection}>
-               <div style={styles.infoRow}><label style={styles.label}>Email</label><p style={styles.value}>{profile?.email}</p></div>
-               <div style={styles.infoRow}><label style={styles.label}>Phone</label><p style={styles.value}>{profile?.phone}</p></div>
+              <div style={styles.infoRow}><label style={styles.label}>Email</label><p style={styles.value}>{profile?.email}</p></div>
+              <div style={styles.infoRow}><label style={styles.label}>Phone</label><p style={styles.value}>{profile?.phone}</p></div>
             </div>
 
             {profile?.location && trackingActive && (
@@ -237,19 +238,19 @@ export default function Dashboard() {
                 />
               </div>
             )}
-            
+
             <button onClick={handleLogout} style={styles.logoutBtn}>Sign Out</button>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: THREATS (Now on the right) */}
+        {/* RIGHT COLUMN */}
         <div style={styles.rightColumn}>
           <div style={styles.threatCard}>
             <div style={styles.threatHeader}>
               <h2 style={styles.threatTitle}>Nearby Monitor</h2>
-              <span style={styles.threatCount}>{nearbyThreats.length} Active</span>
+              <span style={styles.threatCount}>{activeCount} Active</span>
             </div>
-            
+
             <div style={styles.threatList}>
               {nearbyThreats.map((threat) => {
                 const userVote = threat.voters?.[auth.currentUser?.uid || ""];
@@ -259,7 +260,7 @@ export default function Dashboard() {
                     style={{
                       ...styles.threatItem,
                       animation: 'slideIn 0.3s ease-out',
-                      opacity: threat.resolved ? 0.6 : 1,
+                      opacity: threat.resolved ? 0.5 : 1,
                       backgroundColor: threat.resolved ? '#141414' : '#1a1a1a',
                       border: threat.resolved ? '1px solid #1e1e1e' : '1px solid #2a2a2a',
                       filter: threat.resolved ? 'grayscale(1)' : 'none',
@@ -272,60 +273,80 @@ export default function Dashboard() {
                         ...styles.severityIndicator,
                         backgroundColor: threat.resolved
                           ? '#444'
-                          : threat.score >= 7
-                            ? '#ff4444'
-                            : threat.score >= 4
-                              ? '#ffbb33'
-                              : '#00C851'
+                          : threat.score >= 7 ? '#ff4444'
+                          : threat.score >= 4 ? '#ffbb33'
+                          : '#00C851'
                       }}
                     />
 
                     {/* Threat Content */}
                     <div style={styles.threatContent}>
-                      {/* Header */}
                       <div style={styles.threatTop}>
                         <span
                           style={{
                             ...styles.threatType,
                             color: threat.resolved
                               ? '#888'
-                              : threat.score >= 7
-                                ? '#ff4444'
-                                : threat.score >= 4
-                                  ? '#ffbb33'
-                                  : '#00C851'
+                              : threat.score >= 7 ? '#ff4444'
+                              : threat.score >= 4 ? '#ffbb33'
+                              : '#00C851'
                           }}
                         >
                           {threat.resolved
                             ? "Resolved / Archived"
-                            : threat.score >= 7
-                              ? "High Priority"
-                              : threat.score >= 4
-                                ? "Medium Priority"
-                                : "Low Priority"}
+                            : threat.score >= 7 ? "High Priority"
+                            : threat.score >= 4 ? "Medium Priority"
+                            : "Low Priority"}
                         </span>
                       </div>
 
-                      {/* Explanation */}
                       <p style={styles.threatDesc}>{threat.explanation}</p>
                       <p style={styles.threatSubText}>📍 {threat.metadata?.camera?.location}</p>
 
-                      {/* Images */}
-                      {threat.images && threat.images.length > 0 && (
-                        <div style={{
-                          display: 'flex',
-                          gap: '10px',
-                          overflowX: 'auto',
-                          marginTop: '12px'
-                        }}>
-                          {threat.images.map((img, idx) => (
-                            <img
-                              key={idx}
-                              src={`http://localhost:5000/screenshots/${threat.id}/${img}`}
-                              alt={`Threat ${threat.id} screenshot ${idx + 1}`}
-                              style={{ height: '120px', borderRadius: '12px', objectFit: 'cover', marginRight: '8px' }}
+                      {/* Videos */}
+                      {threat.videos && threat.videos.length > 0 && (
+                        <div style={{ position: 'relative', marginTop: '12px' }}>
+                          {threat.videos.map((clip, idx) => (
+                            <video
+                              key={clip}  // stable key — never changes
+                              src={`http://localhost:5000/clips/${threat.id}/${clip}`}
+                              controls
+                              muted
+                              style={{
+                                width: '100%',
+                                height: 'auto',
+                                borderRadius: '12px',
+                                backgroundColor: '#000',
+                                display: idx === (activeVideoIndex[threat.id] || 0) ? 'block' : 'none'  // show/hide only
+                              }}
+
                             />
                           ))}
+
+                          {/* Dot indicators */}
+                          {threat.videos.length > 1 && (
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              marginTop: '8px'
+                            }}>
+                              {threat.videos.map((_, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => setActiveVideoIndex(prev => ({ ...prev, [threat.id]: idx }))}
+                                  style={{
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: idx === (activeVideoIndex[threat.id] || 0) ? '#fff' : '#888',
+                                    cursor: 'pointer',
+                                    transition: '0.2s'
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -366,7 +387,6 @@ export default function Dashboard() {
                 );
               })}
 
-              {/* No threats */}
               {nearbyThreats.length === 0 && (
                 <div style={styles.emptyThreats}>
                   <p>{trackingActive ? "Monitoring for entries within 5 miles..." : "Enable location to view local activity."}</p>
@@ -381,59 +401,14 @@ export default function Dashboard() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: { 
-    minHeight: "100vh", 
-    backgroundColor: "#0a0a0a", 
-    padding: "20px", // reduced padding
-    fontFamily: "sans-serif", 
-    display: "flex", 
-    justifyContent: "center", 
-    alignItems: "flex-start" // allows scrolling instead of squeezing
-  },
-  dashboardGrid: { 
-    display: "flex", 
-    gap: "30px", 
-    width: "100%", 
-    maxWidth: "1600px", 
-    minHeight: "auto", 
-    flexWrap: "wrap" // wraps columns on smaller screens
-  },
-  leftColumn: { 
-    flex: "1 1 350px", // flexible width
-    display: "flex", 
-    justifyContent: "center", 
-    marginBottom: "20px"
-  },
-  rightColumn: { 
-    flex: "2 1 600px", 
-    marginBottom: "20px"
-  },
-  profileCard: { 
-    position: "relative", 
-    backgroundColor: "#fff", 
-    borderRadius: "24px", 
-    padding: "30px", // reduced padding
-    width: "100%", 
-    display: "flex", 
-    flexDirection: "column", 
-    boxShadow: "0 10px 30px rgba(0,0,0,0.5)", 
-    justifyContent: "center"
-  },
+  container: { minHeight: "100vh", backgroundColor: "#0a0a0a", padding: "20px", fontFamily: "sans-serif", display: "flex", justifyContent: "center", alignItems: "flex-start" },
+  dashboardGrid: { display: "flex", gap: "30px", width: "100%", maxWidth: "1600px", minHeight: "auto", flexWrap: "wrap" },
+  leftColumn: { flex: "1 1 350px", display: "flex", justifyContent: "center", marginBottom: "20px" },
+  rightColumn: { flex: "2 1 600px", marginBottom: "20px" },
+  profileCard: { position: "relative", backgroundColor: "#fff", borderRadius: "24px", padding: "30px", width: "100%", display: "flex", flexDirection: "column", boxShadow: "0 10px 30px rgba(0,0,0,0.5)", justifyContent: "center" },
   topActions: { position: "absolute", top: "20px", right: "20px" },
   header: { marginBottom: "25px", textAlign: "center" },
-  avatar: { 
-    width: "80px", 
-    height: "80px", 
-    backgroundColor: "#000", 
-    color: "#fff", 
-    borderRadius: "50%", 
-    display: "flex", 
-    justifyContent: "center", 
-    alignItems: "center", 
-    fontSize: "2rem", 
-    fontWeight: "bold", 
-    margin: "0 auto 15px" 
-  },
+  avatar: { width: "80px", height: "80px", backgroundColor: "#000", color: "#fff", borderRadius: "50%", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "2rem", fontWeight: "bold", margin: "0 auto 15px" },
   name: { fontSize: "1.8rem", fontWeight: 800, color: "#000", margin: 0 },
   liveTag: { fontSize: "0.9rem", color: "#2e7d32", fontWeight: 700, marginTop: "10px" },
   mapBox: { marginTop: "15px", marginBottom: "15px", borderRadius: "16px", overflow: "hidden" },
@@ -442,22 +417,14 @@ const styles: Record<string, React.CSSProperties> = {
   label: { fontSize: "0.8rem", color: "#aaa", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px" },
   value: { fontSize: "1.1rem", color: "#000", fontWeight: 600 },
   logoutBtn: { width: "100%", padding: "14px", borderRadius: "12px", border: "2px solid #eee", backgroundColor: "#fff", fontWeight: 800, cursor: "pointer", color: "#ff4444", fontSize: "1rem" },
-  threatCard: { 
-    backgroundColor: "#111", 
-    borderRadius: "24px", 
-    padding: "30px", 
-    height: "100%", 
-    display: "flex", 
-    flexDirection: "column", 
-    border: "1px solid #222"
-  },
+  threatCard: { backgroundColor: "#111", borderRadius: "24px", padding: "30px", height: "100%", display: "flex", flexDirection: "column", border: "1px solid #222" },
   threatHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", flexWrap: "wrap" },
   threatTitle: { color: "#fff", margin: 0, fontSize: "1.8rem", fontWeight: 800 },
   threatCount: { backgroundColor: "#ff4444", color: "#fff", padding: "6px 16px", borderRadius: "25px", fontSize: "0.9rem", fontWeight: 900, marginTop: "5px" },
   threatList: { overflowY: "auto", flex: 1, paddingRight: "10px" },
   threatItem: { display: "flex", backgroundColor: "#1a1a1a", borderRadius: "20px", padding: "20px", marginBottom: "15px", border: "1px solid #2a2a2a" },
-  severityIndicator: { width: "6px", borderRadius: "8px", marginRight: "20px" },
-  threatContent: { flex: 1 },
+  severityIndicator: { width: "6px", borderRadius: "8px", marginRight: "20px", flexShrink: 0 },
+  threatContent: { flex: 1, minWidth: 0 },
   threatTop: { marginBottom: "10px" },
   threatType: { fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase" },
   threatDesc: { color: "#eee", fontSize: "1.1rem", margin: "0 0 12px 0", lineHeight: "1.5", fontWeight: 400 },
