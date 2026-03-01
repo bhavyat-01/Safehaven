@@ -196,6 +196,61 @@ export default function Dashboard() {
     router.push("/login");
   };
 
+  // ✅ ELEVENLABS TTS FUNCTION
+  const speakThreat = async (text: string) => {
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
+
+      const audio = new Audio(audioUrl);
+      audio.play();
+    } catch (err) {
+      console.error("TTS Error:", err);
+    }
+  };
+
+  const startEmergencyConversation = () => {
+    const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+  
+    const recognition = new SpeechRecognition();
+  
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+  
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+  
+      console.log("User said:", transcript);
+  
+      const res = await fetch("/api/dispatcher", {
+        method: "POST",
+        body: JSON.stringify({
+          message: transcript,
+          location: profile?.location,
+          threats: nearbyThreats
+        }),
+      });
+  
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+  
+      const audio = new Audio(audioUrl);
+      audio.play();
+    };
+  
+    recognition.start();
+  };
+
   if (loading) return <div style={styles.loading}>Establishing Secure Link...</div>;
 
   return (
@@ -266,6 +321,14 @@ export default function Dashboard() {
                       pointerEvents: threat.resolved ? 'none' : 'auto',
                     }}
                   >
+                    {/* ✅ SPEAKER BUTTON */}
+                    <button
+                      onClick={startEmergencyConversation}
+                      style={styles.speakerBtn}
+                      title="Read threat aloud"
+                    >
+                      🔊
+                    </button>
                     {/* Severity Indicator */}
                     <div
                       style={{
@@ -455,7 +518,7 @@ const styles: Record<string, React.CSSProperties> = {
   threatTitle: { color: "#fff", margin: 0, fontSize: "1.8rem", fontWeight: 800 },
   threatCount: { backgroundColor: "#ff4444", color: "#fff", padding: "6px 16px", borderRadius: "25px", fontSize: "0.9rem", fontWeight: 900, marginTop: "5px" },
   threatList: { overflowY: "auto", flex: 1, paddingRight: "10px" },
-  threatItem: { display: "flex", backgroundColor: "#1a1a1a", borderRadius: "20px", padding: "20px", marginBottom: "15px", border: "1px solid #2a2a2a" },
+  threatItem: {   position: "relative", display: "flex", backgroundColor: "#1a1a1a", borderRadius: "20px", padding: "20px", marginBottom: "15px", border: "1px solid #2a2a2a" },
   severityIndicator: { width: "6px", borderRadius: "8px", marginRight: "20px" },
   threatContent: { flex: 1 },
   threatTop: { marginBottom: "10px" },
@@ -471,5 +534,34 @@ const styles: Record<string, React.CSSProperties> = {
   switchLabel: { fontSize: "0.8rem", fontWeight: 800, color: "#bbb" },
   switchBase: { width: "45px", height: "24px", borderRadius: "12px", position: "relative" },
   switchThumb: { width: "20px", height: "20px", backgroundColor: "#fff", borderRadius: "50%", position: "absolute", top: "2px", transition: "0.2s" },
-  loading: { height: "100vh", backgroundColor: "#0a0a0a", color: "#fff", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.5rem" }
+  loading: { height: "100vh", backgroundColor: "#0a0a0a", color: "#fff", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.5rem" },
+  // ✅ SPEAKER BUTTON STYLE
+ttsButton: {
+  position: "absolute",
+  top: "14px",
+  right: "14px",
+  backgroundColor: "#222",
+  border: "1px solid #333",
+  color: "#fff",
+  borderRadius: "10px",
+  width: "36px",
+  height: "36px",
+  cursor: "pointer",
+  fontSize: "16px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 10,
+  transition: "0.2s",
+},
+speakerBtn: {
+  marginLeft: "10px",
+  background: "#222",
+  border: "none",
+  color: "#fff",
+  fontSize: "1.2rem",
+  padding: "8px 12px",
+  borderRadius: "10px",
+  cursor: "pointer"
+},
 };
