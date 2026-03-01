@@ -6,6 +6,8 @@ import { auth, db } from "../../firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc, collection, onSnapshot } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { Volume2 } from "lucide-react";
+
 
 interface UserProfile {
   firstName: string;
@@ -198,25 +200,6 @@ export default function Dashboard() {
   };
 
   // ✅ ELEVENLABS TTS FUNCTION
-  const speakThreat = async (text: string) => {
-    try {
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      });
-
-      const blob = await response.blob();
-      const audioUrl = URL.createObjectURL(blob);
-
-      const audio = new Audio(audioUrl);
-      audio.play();
-    } catch (err) {
-      console.error("TTS Error:", err);
-    }
-  };
 
   const startEmergencyConversation = () => {
     const SpeechRecognition =
@@ -256,9 +239,49 @@ export default function Dashboard() {
 
   return (
     <div style={styles.container}>
+      {/* Twinkling Stars Background */}
       <style>{`
-        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes twinkle {
+          0% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 0.3; transform: scale(1); }
+        }
+        .stars-background {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
+          overflow: hidden;
+          z-index: 0;
+        }
+        .star {
+          position: absolute;
+          background: white;
+          border-radius: 50%;
+          opacity: 0.5;
+          animation: twinkle var(--duration) infinite ease-in-out;
+        }
       `}</style>
+
+            <div className="stars-background">
+        {[...Array(70)].map((_, i) => (
+          <div
+            key={i}
+            className="star"
+            style={{
+              top: `${Math.random() * 100}%`,
+              left: `${Math.random() * 100}%`,
+              width: `${Math.random() * 3}px`,
+              height: `${Math.random() * 3}px`,
+              // @ts-ignore
+              "--duration": `${2 + Math.random() * 4}s`,
+              animationDelay: `${Math.random() * 5}s`,
+            }}
+          />
+        ))}
+      </div>
 
       <div style={styles.dashboardGrid}>
         {/* LEFT COLUMN */}
@@ -328,7 +351,7 @@ export default function Dashboard() {
                       style={styles.speakerBtn}
                       title="Read threat aloud"
                     >
-                      🔊
+                       <Volume2 size={50} />
                     </button>
                     {/* Severity Indicator */}
                     <div
@@ -462,73 +485,123 @@ export default function Dashboard() {
     </div>
   );
 }
-
 const styles: Record<string, React.CSSProperties> = {
-  container: { minHeight: "100vh", backgroundColor: "#0a0a0a", padding: "20px", fontFamily: "sans-serif", display: "flex", justifyContent: "center", alignItems: "flex-start" },
-  dashboardGrid: { display: "flex", gap: "30px", width: "100%", maxWidth: "1600px", minHeight: "auto", flexWrap: "wrap" },
+  container: {
+    minHeight: "100vh",
+    backgroundColor: "#0a0a0a",
+    padding: "20px",
+    fontFamily: "'Segoe UI', sans-serif",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    position: "relative",
+    color: "#eee",
+  },
+  dashboardGrid: {
+    display: "flex",
+    gap: "30px",
+    width: "100%",
+    maxWidth: "1600px",
+    minHeight: "auto",
+    flexWrap: "wrap",
+    zIndex: 1,
+    position: "relative",
+  },
   leftColumn: { flex: "1 1 350px", display: "flex", justifyContent: "center", marginBottom: "20px" },
   rightColumn: { flex: "2 1 600px", marginBottom: "20px" },
-  profileCard: { position: "relative", backgroundColor: "#fff", borderRadius: "24px", padding: "30px", width: "100%", display: "flex", flexDirection: "column", boxShadow: "0 10px 30px rgba(0,0,0,0.5)", justifyContent: "center" },
+  profileCard: {
+    position: "relative",
+    backgroundColor: "rgba(25, 25, 35, 0.85)",
+    borderRadius: "24px",
+    padding: "30px",
+    width: "100%",
+    display: "flex",
+    flexDirection: "column",
+    boxShadow: "0 0 20px rgba(255,255,255,0.1)",
+    backdropFilter: "blur(8px)",
+    color: "#eee",
+  },
   topActions: { position: "absolute", top: "20px", right: "20px" },
   header: { marginBottom: "25px", textAlign: "center" },
-  avatar: { width: "80px", height: "80px", backgroundColor: "#000", color: "#fff", borderRadius: "50%", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "2rem", fontWeight: "bold", margin: "0 auto 15px" },
-  name: { fontSize: "1.8rem", fontWeight: 800, color: "#000", margin: 0 },
-  liveTag: { fontSize: "0.9rem", color: "#2e7d32", fontWeight: 700, marginTop: "10px" },
-  mapBox: { marginTop: "15px", marginBottom: "15px", borderRadius: "16px", overflow: "hidden" },
-  infoSection: { textAlign: "center", borderTop: "1.5px solid #eee", borderBottom: "1.5px solid #eee", padding: "20px 0", margin: "15px 0" },
+  avatar: {
+    width: "80px",
+    height: "80px",
+    backgroundColor: "#444",
+    color: "#fff",
+    borderRadius: "50%",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontSize: "2rem",
+    fontWeight: "bold",
+    margin: "0 auto 15px",
+    boxShadow: "0 0 10px #00C851",
+  },
+  name: { fontSize: "1.8rem", fontWeight: 800, margin: 0, color: "#fff" },
+  liveTag: {
+    fontSize: "0.9rem",
+    color: "#00C851",
+    fontWeight: 700,
+    marginTop: "10px",
+    textShadow: "0 0 6px #00C851",
+  },
+  mapBox: { marginTop: "15px", marginBottom: "15px", borderRadius: "16px", overflow: "hidden", border: "1px solid #555" },
+  infoSection: { textAlign: "center", borderTop: "1px solid #444", borderBottom: "1px solid #444", padding: "20px 0", margin: "15px 0" },
   infoRow: { marginBottom: "15px" },
   label: { fontSize: "0.8rem", color: "#aaa", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px" },
-  value: { fontSize: "1.1rem", color: "#000", fontWeight: 600 },
-  logoutBtn: { width: "100%", padding: "14px", borderRadius: "12px", border: "2px solid #eee", backgroundColor: "#fff", fontWeight: 800, cursor: "pointer", color: "#ff4444", fontSize: "1rem" },
-  threatCard: { backgroundColor: "#111", borderRadius: "24px", padding: "30px", height: "100%", display: "flex", flexDirection: "column", border: "1px solid #222" },
+  value: { fontSize: "1.1rem", fontWeight: 600 },
+  logoutBtn: {
+    width: "100%",
+    padding: "14px",
+    borderRadius: "12px",
+    border: "2px solid #ff4444",
+    backgroundColor: "rgba(255,0,0,0.15)",
+    color: "#ff4444",
+    fontWeight: 800,
+    cursor: "pointer",
+    fontSize: "1rem",
+    transition: "0.3s",
+  },
+  threatCard: {
+    backgroundColor: "rgba(20, 20, 30, 0.85)",
+    borderRadius: "24px",
+    padding: "30px",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    border: "1px solid #333",
+    boxShadow: "0 0 20px rgba(255,255,255,0.05)",
+  },
   threatHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px", flexWrap: "wrap" },
   threatTitle: { color: "#fff", margin: 0, fontSize: "1.8rem", fontWeight: 800 },
-  threatCount: { backgroundColor: "#ff4444", color: "#fff", padding: "6px 16px", borderRadius: "25px", fontSize: "0.9rem", fontWeight: 900, marginTop: "5px" },
+  threatCount: { backgroundColor: "#ff4444", color: "#fff", padding: "6px 16px", borderRadius: "25px", fontSize: "0.9rem", fontWeight: 900, marginTop: "5px", textShadow: "0 0 4px #ff4444" },
   threatList: { overflowY: "auto", flex: 1, paddingRight: "10px" },
-  threatItem: {   position: "relative", display: "flex", backgroundColor: "#1a1a1a", borderRadius: "20px", padding: "20px", marginBottom: "15px", border: "1px solid #2a2a2a" },
-  severityIndicator: { width: "6px", borderRadius: "8px", marginRight: "20px" },
+  threatItem: {
+    position: "relative",
+    display: "flex",
+    backgroundColor: "rgba(25,25,35,0.8)",
+    borderRadius: "20px",
+    padding: "20px",
+    marginBottom: "15px",
+    border: "1px solid #444",
+    boxShadow: "0 0 12px rgba(0,0,0,0.4)",
+  },
+  severityIndicator: { width: "6px", borderRadius: "8px", marginRight: "20px", boxShadow: "0 0 8px currentColor" },
   threatContent: { flex: 1 },
   threatTop: { marginBottom: "10px" },
   threatType: { fontWeight: 800, fontSize: "1.1rem", textTransform: "uppercase" },
-  threatDesc: { color: "#eee", fontSize: "1.1rem", margin: "0 0 12px 0", lineHeight: "1.5", fontWeight: 400 },
+  threatDesc: { color: "#ddd", fontSize: "1.1rem", margin: "0 0 12px 0", lineHeight: "1.5" },
   threatSubText: { color: "#888", fontSize: "0.9rem", margin: 0, fontStyle: "italic" },
   voteContainer: { display: 'flex', gap: '12px', marginTop: '15px' },
-  confirmBtn: { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#00C851', color: '#fff', fontSize: '1rem', fontWeight: 800, cursor: 'pointer', transition: '0.3s' },
-  denyBtn: { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ff4444', color: '#fff', fontSize: '1rem', fontWeight: 800, cursor: 'pointer', transition: '0.3s' },
-  voteInstruction: { color: "#666", fontSize: "0.85rem", fontStyle: "italic", marginTop: "10px", textAlign: "left" },
+  confirmBtn: { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#00C851', color: '#fff', fontSize: '1rem', fontWeight: 800, cursor: 'pointer', transition: '0.3s', boxShadow: '0 0 6px #00C851' },
+  denyBtn: { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#ff4444', color: '#fff', fontSize: '1rem', fontWeight: 800, cursor: 'pointer', transition: '0.3s', boxShadow: '0 0 6px #ff4444' },
+  voteInstruction: { color: "#aaa", fontSize: "0.85rem", fontStyle: "italic", marginTop: "10px", textAlign: "left" },
   emptyThreats: { height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#666", textAlign: "center", fontSize: "1rem" },
   switchWrapper: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" },
   switchLabel: { fontSize: "0.8rem", fontWeight: 800, color: "#bbb" },
-  switchBase: { width: "45px", height: "24px", borderRadius: "12px", position: "relative" },
+  switchBase: { width: "45px", height: "24px", borderRadius: "12px", position: "relative", backgroundColor: "#444" },
   switchThumb: { width: "20px", height: "20px", backgroundColor: "#fff", borderRadius: "50%", position: "absolute", top: "2px", transition: "0.2s" },
   loading: { height: "100vh", backgroundColor: "#0a0a0a", color: "#fff", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "1.5rem" },
-  // ✅ SPEAKER BUTTON STYLE
-ttsButton: {
-  position: "absolute",
-  top: "14px",
-  right: "14px",
-  backgroundColor: "#222",
-  border: "1px solid #333",
-  color: "#fff",
-  borderRadius: "10px",
-  width: "36px",
-  height: "36px",
-  cursor: "pointer",
-  fontSize: "16px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 10,
-  transition: "0.2s",
-},
-speakerBtn: {
-  marginLeft: "10px",
-  background: "#222",
-  border: "none",
-  color: "#fff",
-  fontSize: "1.2rem",
-  padding: "8px 12px",
-  borderRadius: "10px",
-  cursor: "pointer"
-},
+  ttsButton: { position: "absolute", top: "14px", right: "14px", backgroundColor: "#222", border: "1px solid #333", color: "#fff", borderRadius: "10px", width: "36px", height: "36px", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, transition: "0.2s" },
+  speakerBtn: { marginLeft: "10px", background: "#222", border: "none", color: "#fff", fontSize: "1.2rem", padding: "8px 12px", borderRadius: "10px", cursor: "pointer", boxShadow: "0 0 6px #fff" },
 };
